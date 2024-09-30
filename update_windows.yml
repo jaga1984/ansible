@@ -1,7 +1,7 @@
 ----
 - hosts: all
   tasks:
-- name: windows_updates
+- name: update_windows
   win_updates:
   reboot_timeout: 1200
   log_path: undefined
