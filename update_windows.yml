@@ -1,7 +1,7 @@
 ---
-- hosts: DCs
+- hosts: All
   tasks:
-  - name: Choose which Windows updates to install
+  - name: update_windows
   win_updates:
     category_names:
       - SecurityUpdates
