@@ -1,6 +1,6 @@
 ---
 # DESCRIPTION
-# Apply windows updates
+# Apply windows updates for desktops and servers
 
 - name: Apply windows updates
   hosts: all
