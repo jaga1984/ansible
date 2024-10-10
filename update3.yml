@@ -1,0 +1,13 @@
+---
+  
+- hosts: all
+  vars:
+    ansible_host_key_checking: false
+
+  tasks:
+
+    - name: Update and upgrade apt packages
+      apt:
+        update_cache: yes
+        upgrade: yes
+        become: yes
