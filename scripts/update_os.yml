@@ -1,0 +1,106 @@
+---
+- name: Update repository list and upgrade OS
+  hosts: all
+  become: yes
+  gather_facts: yes
+  
+  tasks:
+    # Debian/Ubuntu systems
+    - name: Update apt repository cache
+      ansible.builtin.apt:
+        update_cache: yes
+        cache_valid_time: 3600
+      when: ansible_os_family == "Debian"
+      tags: ['update', 'debian']
+    
+    - name: Upgrade all packages (Debian/Ubuntu)
+      ansible.builtin.apt:
+        upgrade: dist
+        autoremove: yes
+        autoclean: yes
+      when: ansible_os_family == "Debian"
+      register: apt_upgrade_result
+      tags: ['upgrade', 'debian']
+    
+    # RedHat/CentOS/Fedora systems
+    - name: Update yum/dnf repository cache
+      ansible.builtin.yum:
+        update_cache: yes
+      when: ansible_os_family == "RedHat"
+      tags: ['update', 'redhat']
+    
+    - name: Upgrade all packages (RedHat/CentOS/Fedora)
+      ansible.builtin.yum:
+        name: "*"
+        state: latest
+      when: ansible_os_family == "RedHat"
+      register: yum_upgrade_result
+      tags: ['upgrade', 'redhat']
+    
+    # SUSE systems
+    - name: Refresh zypper repositories
+      ansible.builtin.zypper:
+        name: "*"
+        state: latest
+        update_cache: yes
+      when: ansible_os_family == "Suse"
+      register: zypper_upgrade_result
+      tags: ['upgrade', 'suse']
+    
+    # Display results
+    - name: Display upgrade results (Debian/Ubuntu)
+      ansible.builtin.debug:
+        msg: 
+          - "Packages upgraded: {{ apt_upgrade_result.changed }}"
+          - "Upgrade output: {{ apt_upgrade_result.stdout_lines | default([]) }}"
+      when: ansible_os_family == "Debian" and apt_upgrade_result is defined
+      tags: ['results']
+    
+    - name: Display upgrade results (RedHat)
+      ansible.builtin.debug:
+        msg: 
+          - "Packages upgraded: {{ yum_upgrade_result.changed }}"
+          - "Updated packages: {{ yum_upgrade_result.results | default([]) }}"
+      when: ansible_os_family == "RedHat" and yum_upgrade_result is defined
+      tags: ['results']
+    
+    # Check if reboot is required
+    - name: Check if reboot is required (Debian/Ubuntu)
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_required_file
+      when: ansible_os_family == "Debian"
+      tags: ['reboot-check']
+    
+    - name: Check if reboot is required (RedHat)
+      ansible.builtin.shell: |
+        if [ -f /var/run/reboot-required ]; then
+          echo "reboot_required"
+        elif needs-restarting -r > /dev/null 2>&1; then
+          echo "reboot_required"
+        else
+          echo "no_reboot_required"
+        fi
+      register: reboot_check_redhat
+      when: ansible_os_family == "RedHat"
+      changed_when: false
+      failed_when: false
+      tags: ['reboot-check']
+    
+    - name: Notify about reboot requirement
+      ansible.builtin.debug:
+        msg: "*** REBOOT REQUIRED *** Please reboot {{ inventory_hostname }} to complete the update process"
+      when: >
+        (ansible_os_family == "Debian" and reboot_required_file.stat.exists) or
+        (ansible_os_family == "RedHat" and reboot_check_redhat.stdout == "reboot_required")
+      tags: ['reboot-check']
+    
+    # Optional: Automatic reboot (uncomment if desired)
+    - name: Reboot if required
+       ansible.builtin.reboot:
+         msg: "Rebooting to complete system updates"
+         reboot_timeout: 300
+       when: >
+         (ansible_os_family == "Debian" and reboot_required_file.stat.exists) or
+         (ansible_os_family == "RedHat" and reboot_check_redhat.stdout == "reboot_required")
+       tags: ['reboot']
